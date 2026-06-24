@@ -1,0 +1,177 @@
+%% PawPal 时序图 — 核心流程
+%% 用于: docs/sequence-diagram.mermaid
+%% 包含 3 个核心流程：注册→创建宠物→加入圈子、AI助手搜索→总结、社区动态发布→Feed展示
+
+%% ========== 流程 1: 用户注册 → 创建宠物档案 → 加入品种圈 ==========
+sequenceDiagram
+    actor U as User
+    participant FE as Frontend (React)
+    participant API as Express API
+    participant Auth as AuthService
+    participant DB as PostgreSQL
+    participant Circle as CommunityService
+
+    U->>FE: 填写注册表单（邮箱/密码/昵称）
+    FE->>API: POST /api/v1/auth/register
+    API->>Auth: register(email, password, nickname)
+    Auth->>Auth: bcrypt.hash(password)
+    Auth->>DB: INSERT User
+    DB-->>Auth: User record
+    Auth->>Auth: jwt.sign(userId)
+    Auth-->>API: { user, token }
+    API-->>FE: 201 { code:0, data:{ user, token } }
+    FE->>FE: authStore.set(user, token)
+    FE->>FE: 跳转引导页「创建第一只宠物」
+
+    U->>FE: 填写宠物档案（名称/品种/性别/生日/体重/照片）
+    FE->>API: POST /api/v1/pets (with image upload)
+    API->>API: upload middleware 处理图片
+    API->>DB: INSERT Pet
+    DB-->>API: Pet record
+    API-->>FE: 201 { code:0, data: pet }
+    FE->>FE: petStore.setCurrent(pet)
+
+    FE->>API: GET /api/v1/circles?type=BREED&species=DOG
+    API->>Circle: listByType(BREED, DOG)
+    Circle->>DB: SELECT Circle WHERE type=BREED AND species=DOG
+    DB-->>Circle: 品种圈列表（柯基圈/金毛圈/...）
+    Circle-->>API: circles
+    API-->>FE: 200 { code:0, data: circles }
+
+    U->>FE: 选择加入「柯基圈」
+    FE->>API: POST /api/v1/circles/:circleId/join
+    API->>Circle: join(userId, circleId)
+    Circle->>DB: INSERT CircleMember + UPDATE Circle.memberCount
+    DB-->>API: ok
+    API-->>FE: 200 { code:0 }
+    FE->>FE: 跳转首页 Feed
+
+%% ========== 流程 2: AI 助手搜索 → 总结建议 ==========
+sequenceDiagram
+    actor U as User
+    participant FE as Frontend
+    participant API as Express API
+    participant AI as AIService
+    participant LLM as LLMClient (DeepSeek)
+    participant Search as SearchService
+    participant DB as PostgreSQL
+
+    U->>FE: 输入宠物问题描述 + 上传症状图片
+    FE->>FE: 显示 loading「AI 正在分析...」
+    FE->>API: POST /api/v1/ai/consult { question, petId, images }
+    API->>AI: runPipeline({ question, petId, images })
+
+    rect rgb(245, 248, 255)
+        Note over AI: Step 1: 问题类型识别
+        AI->>LLM: classify(question, ["消化问题","皮肤问题","行为异常","眼部问题","耳部问题","其他"])
+        LLM-->>AI: "消化问题"
+    end
+
+    rect rgb(245, 248, 255)
+        Note over AI: Step 2: 内容检索（社区帖 + 知识库）
+        AI->>Search: searchAll(question + "消化问题")
+        Search->>DB: SELECT Post WHERE content MATCH keywords (pg_trgm)
+        DB-->>Search: 相关社区帖列表
+        Search->>DB: SELECT KnowledgeArticle WHERE content MATCH keywords
+        DB-->>Search: 相关知识文章
+        Search-->>AI: { posts: [...], articles: [...] }
+    end
+
+    rect rgb(245, 248, 255)
+        Note over AI: Step 3: AI 总结归纳
+        AI->>LLM: chat(system_prompt + question + search_results)
+        Note over LLM: 系统提示词：你是宠物经验总结助手，<br/>不给出医疗诊断和用药剂量，<br/>仅总结社区经验和知识要点
+        LLM-->>AI: 总结文本（分条要点）
+    end
+
+    rect rgb(245, 248, 255)
+        Note over AI: Step 4: 组装结果 + 免责声明
+        AI->>AI: buildDisclaimer()
+        AI->>AI: 组装 { questionType, summary, sources, disclaimer }
+    end
+
+    AI->>DB: INSERT AIAssistantSession
+    DB-->>AI: session record
+    AI-->>API: AIAssistantSession
+    API-->>FE: 200 { code:0, data: session }
+
+    FE->>FE: 渲染结果卡片
+    Note over FE: · 问题类型标签：消化问题<br/>· 参考建议：分条要点<br/>· 来源引用：社区帖链接 + 文章链接<br/>· 免责声明：仅供参考，不构成医疗诊断
+
+    U->>FE: 点击「保存到咨询记录」
+    FE->>API: PATCH /api/v1/ai/sessions/:id { status: "OBSERVING" }
+    API->>DB: UPDATE AIAssistantSession
+    API-->>FE: 200 { code:0 }
+
+    U->>FE: 点击「去社区提问」（引导深度交流）
+    FE->>FE: 跳转发布动态页，预填问题描述
+
+%% ========== 流程 3: 社区动态发布 → Feed 展示 → 互动 ==========
+sequenceDiagram
+    actor U as User
+    actor V as Viewer
+    participant FE as Frontend
+    participant API as Express API
+    participant Comm as CommunityService
+    participant Feed as FeedService
+    participant Notif as NotificationService
+    participant DB as PostgreSQL
+
+    U->>FE: 点击「分享你和毛孩子的故事」
+    FE->>FE: 打开 PostComposer
+    U->>FE: 填写标题/正文/上传图片/选择关联宠物/选择圈子/添加话题标签
+    FE->>API: POST /api/v1/posts (multipart: images + JSON)
+    API->>API: upload middleware 处理图片
+    API->>Comm: publish({ userId, circleId, petId, title, content, images, tags })
+    Comm->>DB: INSERT Post
+    DB-->>Comm: Post record
+    Comm->>DB: UPDATE Circle SET postCount += 1
+    Comm-->>API: post
+    API-->>FE: 201 { code:0, data: post }
+    FE->>FE: React Query invalidate(['posts', 'feed'])
+    FE->>FE: 新动态出现在 Feed 顶部（乐观更新）
+
+    V->>FE: 打开首页，切换「最新」Tab
+    FE->>API: GET /api/v1/posts/feed?type=LATEST&cursor=0&limit=10
+    API->>Feed: getFeed(LATEST, cursor=0, limit=10)
+    Feed->>DB: SELECT Post ORDER BY createdAt DESC LIMIT 10
+    DB-->>Feed: posts + nextCursor
+    Feed-->>API: { posts, nextCursor }
+    API-->>FE: 200 { code:0, data: { posts, nextCursor } }
+    FE->>FE: 渲染 PostCard 列表
+
+    V->>FE: 向下滚动，触发无限滚动
+    FE->>API: GET /api/v1/posts/feed?type=LATEST&cursor=nextCursor&limit=10
+    API->>Feed: getFeed(LATEST, cursor, limit)
+    Feed->>DB: SELECT Post WHERE createdAt < cursor ORDER BY createdAt DESC
+    DB-->>Feed: 更多 posts
+    Feed-->>API: { posts, nextCursor }
+    API-->>FE: 200 { code:0, data }
+    FE->>FE: 追加渲染更多 PostCard
+
+    V->>FE: 点击「点赞」
+    FE->>FE: 乐观更新：likeCount += 1，心形变红
+    FE->>API: POST /api/v1/posts/:postId/like
+    API->>Comm: toggleLike(viewerId, postId)
+    Comm->>DB: INSERT/DELETE Like + UPDATE Post.likeCount
+    Comm->>Notif: create({ userId: postAuthor, type: LIKE, content, linkUrl })
+    Notif->>DB: INSERT Notification
+    Comm-->>API: { liked: true }
+    API-->>FE: 200 { code:0, data: { liked: true } }
+
+    V->>FE: 点击「评论」，输入评论内容
+    FE->>API: POST /api/v1/posts/:postId/comments { content, parentId? }
+    API->>Comm: createComment({ postId, userId, content, parentId })
+    Comm->>DB: INSERT Comment + UPDATE Post.commentCount
+    Comm->>Notif: create({ userId: postAuthor, type: COMMENT, content, linkUrl })
+    Comm-->>API: comment
+    API-->>FE: 201 { code:0, data: comment }
+    FE->>FE: 评论实时追加到 CommentTree
+
+    V->>FE: 查看通知
+    FE->>API: GET /api/v1/users/notifications
+    API->>Notif: listByUser(viewerId)
+    Notif->>DB: SELECT Notification WHERE userId = viewerId AND isRead = false
+    DB-->>Notif: notifications
+    Notif-->>API: notifications
+    API-->>FE: 200 { code:0, data: notifications }

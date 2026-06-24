@@ -1,0 +1,262 @@
+%% PawPal 类图 — 核心数据模型与服务类关系
+%% 用于: docs/class-diagram.mermaid
+
+classDiagram
+    class User {
+        +String id
+        +String email
+        +String passwordHash
+        +String nickname
+        +String avatar
+        +String bio
+        +String city
+        +MembershipLevel membershipLevel
+        +DateTime createdAt
+        +DateTime updatedAt
+        +register(email, password, nickname) User
+        +login(email, password) String
+        +updateProfile(data) void
+        +exportData() Buffer
+        +deleteAccount() void
+    }
+
+    class Pet {
+        +String id
+        +String userId
+        +String name
+        +PetSpecies species
+        +String breed
+        +PetGender gender
+        +DateTime birthday
+        +Float weight
+        +String photo
+        +Boolean neutered
+        +DateTime createdAt
+        +DateTime updatedAt
+        +create(data) Pet
+        +update(id, data) Pet
+        +delete(id) void
+        +calculateAge() Number
+    }
+
+    class HealthRecord {
+        +String id
+        +String petId
+        +HealthRecordType type
+        +DateTime date
+        +String itemName
+        +String notes
+        +String[] images
+        +DateTime createdAt
+        +create(data) HealthRecord
+        +update(id, data) HealthRecord
+        +delete(id) void
+        +listByPet(petId, filters) HealthRecord[]
+    }
+
+    class WeightRecord {
+        +String id
+        +String petId
+        +Float weight
+        +DateTime date
+        +DateTime createdAt
+        +record(petId, weight, date) WeightRecord
+        +getTrend(petId, range) WeightRecord[]
+    }
+
+    class Reminder {
+        +String id
+        +String petId
+        +ReminderType type
+        +DateTime nextDate
+        +Int cycleDays
+        +ReminderStatus status
+        +DateTime createdAt
+        +calculateNext(lastDate, cycleDays) DateTime
+        +markNotified(id) void
+        +listByUser(userId) Reminder[]
+    }
+
+    class Notification {
+        +String id
+        +String userId
+        +NotificationType type
+        +String content
+        +String linkUrl
+        +Boolean isRead
+        +DateTime createdAt
+        +create(data) Notification
+        +markAsRead(id) void
+        +listUnread(userId) Notification[]
+    }
+
+    class Post {
+        +String id
+        +String userId
+        +String circleId
+        +String petId
+        +String title
+        +String content
+        +String[] images
+        +String[] tags
+        +Int likeCount
+        +Int commentCount
+        +DateTime createdAt
+        +publish(data) Post
+        +delete(id) void
+        +getFeed(type, cursor, limit) Post[]
+    }
+
+    class Comment {
+        +String id
+        +String postId
+        +String userId
+        +String parentId
+        +String content
+        +DateTime createdAt
+        +create(data) Comment
+        +listByPost(postId) Comment[]
+        +delete(id) void
+    }
+
+    class Like {
+        +String id
+        +String userId
+        +String postId
+        +DateTime createdAt
+        +toggle(userId, postId) void
+    }
+
+    class Circle {
+        +String id
+        +String name
+        +CircleType type
+        +PetSpecies species
+        +String coverImage
+        +String description
+        +Int memberCount
+        +DateTime createdAt
+        +create(data) Circle
+        +join(userId, circleId) void
+        +leave(userId, circleId) void
+        +listByType(type) Circle[]
+    }
+
+    class CircleMember {
+        +String id
+        +String circleId
+        +String userId
+        +DateTime joinedAt
+    }
+
+    class Follow {
+        +String id
+        +String followerId
+        +String followeeId
+        +DateTime createdAt
+        +toggle(followerId, followeeId) void
+        +listFollowers(userId) User[]
+        +listFollowing(userId) User[]
+    }
+
+    class AIAssistantSession {
+        +String id
+        +String userId
+        +String petId
+        +String question
+        +String[] imageUrls
+        +String questionType
+        +String summary
+        +JsonArray sources
+        +SessionStatus status
+        +DateTime createdAt
+        +consult(data) AIAssistantSession
+        +listByUser(userId) AIAssistantSession[]
+        +updateStatus(id, status) void
+    }
+
+    class KnowledgeArticle {
+        +String id
+        +String title
+        +PetSpecies species
+        +String breed
+        +String category
+        +String content
+        +String author
+        +DateTime createdAt
+        +create(data) KnowledgeArticle
+        +batchImport(articles[]) void
+        +search(keyword, filters) KnowledgeArticle[]
+    }
+
+    class GrowthDiary {
+        +String id
+        +String petId
+        +JsonArray milestones
+        +String[] photos
+        +DateTime createdAt
+        +generate(petId) GrowthDiary
+        +shareToCommunity(diaryId) Post
+    }
+
+    class AIService {
+        +identifyQuestionType(question, images) String
+        +searchContent(questionType, keywords) SearchResult
+        +summarize(question, searchResults) String
+        +buildDisclaimer() String
+        +runPipeline(data) AIAssistantSession
+    }
+
+    class LLMClient {
+        +String apiUrl
+        +String apiKey
+        +chat(messages, options) String
+        +classify(text, categories) String
+    }
+
+    class SearchService {
+        +searchPosts(keyword, limit) Post[]
+        +searchKnowledge(keyword, filters) KnowledgeArticle[]
+        +searchAll(keyword) SearchResult
+    }
+
+    class DataPrivacyService {
+        +encryptField(value) String
+        +decryptField(encrypted) String
+        +exportUserData(userId) Buffer
+        +deleteUserData(userId) void
+    }
+
+    class ReminderService {
+        +calculateNextDate(lastDate, cycleDays) DateTime
+        +generateReminders(petId) Reminder[]
+        +processDueReminders() void
+        +sendNotification(userId, reminder) void
+    }
+
+    %% 关系
+    User "1" --> "N" Pet : owns
+    User "1" --> "N" Post : publishes
+    User "1" --> "N" AIAssistantSession : consults
+    User "1" --> "N" Notification : receives
+    User "1" --> "N" Follow : follows/followed
+    User "1" --> "N" CircleMember : joins
+
+    Pet "1" --> "N" HealthRecord : has
+    Pet "1" --> "N" WeightRecord : tracks
+    Pet "1" --> "N" Reminder : schedules
+    Pet "1" --> "1" GrowthDiary : generates
+
+    Circle "1" --> "N" Post : contains
+    Circle "1" --> "N" CircleMember : has
+    Circle "1" --> "N" KnowledgeArticle : curates
+
+    Post "1" --> "N" Comment : has
+    Post "1" --> "N" Like : receives
+
+    AIService --> LLMClient : uses
+    AIService --> SearchService : uses
+    AIService --> AIAssistantSession : creates
+    ReminderService --> Reminder : manages
+    ReminderService --> Notification : sends
+    DataPrivacyService --> User : protects

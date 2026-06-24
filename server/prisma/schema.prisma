@@ -1,0 +1,337 @@
+// PawPal (爪友) — Database Schema
+// PostgreSQL 16 + pg_trgm for full-text search
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== Enums ====================
+
+enum PetSpecies {
+  DOG
+  CAT
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+}
+
+enum HealthRecordType {
+  VACCINE
+  DEWORMING
+  CHECKUP
+  VISIT
+}
+
+enum ReminderType {
+  VACCINE
+  DEWORMING
+  CHECKUP
+}
+
+enum ReminderStatus {
+  PENDING
+  NOTIFIED
+  DONE
+  OVERDUE
+}
+
+enum NotificationType {
+  REMINDER
+  LIKE
+  COMMENT
+  FOLLOW
+  SYSTEM
+}
+
+enum CircleType {
+  BREED
+  CITY
+}
+
+enum SessionStatus {
+  OBSERVING
+  RECOVERED
+  VISITED_DOCTOR
+}
+
+enum MembershipLevel {
+  FREE
+  PREMIUM
+}
+
+// ==================== Models ====================
+
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  passwordHash    String
+  nickname        String
+  avatar          String          @default("")
+  bio             String          @default("")
+  city            String          @default("")
+  membershipLevel MembershipLevel @default(FREE)
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  pets           Pet[]
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  followings     Follow[]        @relation("Follower")
+  followers      Follow[]        @relation("Followee")
+  circleMembers  CircleMember[]
+  aiSessions     AIAssistantSession[]
+  notifications  Notification[]
+  growthDiaries  GrowthDiary[]
+
+  @@map("users")
+}
+
+model Pet {
+  id        String     @id @default(cuid())
+  userId    String
+  name      String
+  species   PetSpecies
+  breed     String     @default("")
+  gender    PetGender
+  birthday  DateTime?
+  weight    Float      @default(0)
+  photo     String     @default("")
+  neutered  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  healthRecords  HealthRecord[]
+  weightRecords  WeightRecord[]
+  reminders      Reminder[]
+  posts          Post[]
+  growthDiary    GrowthDiary?
+
+  @@index([userId])
+  @@map("pets")
+}
+
+model HealthRecord {
+  id        String           @id @default(cuid())
+  petId     String
+  type      HealthRecordType
+  date      DateTime
+  itemName  String
+  notes     String           @default("")
+  images    String[]
+  createdAt DateTime         @default(now())
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, type])
+  @@index([petId, date])
+  @@map("health_records")
+}
+
+model WeightRecord {
+  id        String   @id @default(cuid())
+  petId     String
+  weight    Float
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, date])
+  @@map("weight_records")
+}
+
+model Reminder {
+  id        String         @id @default(cuid())
+  petId     String
+  type      ReminderType
+  nextDate  DateTime
+  cycleDays Int            @default(365)
+  status    ReminderStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([status, nextDate])
+  @@map("reminders")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  content   String
+  linkUrl   String           @default("")
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Post {
+  id           String   @id @default(cuid())
+  userId       String
+  circleId     String?
+  petId        String?
+  title        String
+  content      String
+  images       String[]
+  tags         String[]
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circle   Circle?   @relation(fields: [circleId], references: [id], onDelete: SetNull)
+  pet      Pet?      @relation(fields: [petId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  likes    Like[]
+
+  @@index([userId])
+  @@index([circleId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  parentId  String?
+  content   String
+  createdAt DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("likes")
+}
+
+model Circle {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  type        CircleType
+  species     PetSpecies?
+  coverImage  String     @default("")
+  description String     @default("")
+  memberCount Int        @default(0)
+  postCount   Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  posts         Post[]
+  members       CircleMember[]
+  knowledgeArticles KnowledgeArticle[]
+
+  @@index([type, species])
+  @@map("circles")
+}
+
+model CircleMember {
+  id        String   @id @default(cuid())
+  circleId  String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@map("circle_members")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followeeId  String
+  createdAt   DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@map("follows")
+}
+
+model AIAssistantSession {
+  id           String        @id @default(cuid())
+  userId       String
+  petId        String?
+  question     String
+  imageUrls    String[]
+  questionType String        @default("")
+  summary      String        @default("")
+  sources      Json
+  status       SessionStatus @default(OBSERVING)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ai_assistant_sessions")
+}
+
+model KnowledgeArticle {
+  id        String      @id @default(cuid())
+  title     String
+  species   PetSpecies?
+  breed     String      @default("")
+  category  String
+  content   String
+  author    String      @default("PawPal 知识库")
+  createdAt DateTime    @default(now())
+
+  circle Circle? @relation(fields: [circleId], references: [id], onDelete: SetNull)
+  circleId String?
+
+  @@index([species, category])
+  @@index([breed])
+  @@map("knowledge_articles")
+}
+
+model GrowthDiary {
+  id         String   @id @default(cuid())
+  petId      String   @unique
+  userId     String
+  milestones Json
+  photos     String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  pet  Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("growth_diaries")
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#FF6B35"/>
+  <!-- Paw print: main pad -->
+  <ellipse cx="256" cy="300" rx="70" ry="55" fill="#FFFFFF"/>
+  <!-- Toe pads -->
+  <ellipse cx="170" cy="220" rx="32" ry="42" fill="#FFFFFF" transform="rotate(-15 170 220)"/>
+  <ellipse cx="220" cy="175" rx="30" ry="40" fill="#FFFFFF" transform="rotate(-5 220 175)"/>
+  <ellipse cx="292" cy="175" rx="30" ry="40" fill="#FFFFFF" transform="rotate(5 292 175)"/>
+  <ellipse cx="342" cy="220" rx="32" ry="42" fill="#FFFFFF" transform="rotate(15 342 220)"/>
+  <!-- Heart accent on pad -->
+  <path d="M256 280 Q240 260, 225 275 Q210 290, 256 330 Q302 290, 287 275 Q272 260, 256 280 Z" fill="#FF6B35" opacity="0.3"/>
+</svg>
