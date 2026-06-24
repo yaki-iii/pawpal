@@ -118,6 +118,7 @@ export const REMINDER_CYCLES: Record<string, number> = {
 export const CIRCLE_TYPE_LABELS: Record<CircleType, string> = {
   [CircleType.BREED]: '品种圈',
   [CircleType.CITY]: '同城圈',
+  [CircleType.TOPIC]: '话题圈',
 };
 
 // ==================== Species Labels ====================
@@ -130,7 +131,7 @@ export const SPECIES_LABELS: Record<PetSpecies, string> = {
 // ==================== AI Disclaimer ====================
 
 export const AI_DISCLAIMER =
-  '以上内容来自社区、知识库和网络公开信息总结，仅供参考，不构成专业兽医建议，复杂情况请及时就医。';
+  '以上内容来自社区和网络公开信息总结，仅供参考，不构成专业兽医建议，复杂情况请及时就医。';
 
 // ==================== Question Type Labels ====================
 
@@ -151,6 +152,5 @@ export const NAV_ITEMS = [
   { label: '我的宠物', path: '/pets', icon: 'PawPrint' },
   { label: '圈子广场', path: '/circles', icon: 'Users' },
   { label: 'AI 助手', path: '/ai', icon: 'Bot' },
-  { label: '知识库', path: '/knowledge', icon: 'BookOpen' },
   { label: '个人主页', path: '/profile', icon: 'User' },
 ] as const;

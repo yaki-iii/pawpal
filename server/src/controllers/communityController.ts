@@ -236,4 +236,25 @@ export class CommunityController {
       sendError(res, 400, (error as Error).message || '退出失败');
     }
   }
+
+  /**
+   * POST /circles — create a new topic circle (user-created)
+   */
+  static async createCircle(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.userId) {
+        sendError(res, 401, '未授权');
+        return;
+      }
+      const { name, description, coverImage } = req.body;
+      const circle = await CommunityService.createCircle(req.userId, {
+        name,
+        description: description || '',
+        coverImage: coverImage || '',
+      });
+      sendSuccess(res, circle, '创建成功', 201);
+    } catch (error) {
+      sendError(res, 400, (error as Error).message || '创建失败');
+    }
+  }
 }

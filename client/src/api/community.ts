@@ -87,6 +87,11 @@ export const communityApi = {
     return apiClient.get('/circles', { params });
   },
 
+  /** Create a new topic circle (user-created). */
+  createCircle(data: { name: string; description?: string; coverImage?: string }): Promise<Circle> {
+    return apiClient.post('/circles', data);
+  },
+
   /** Get circle detail by ID. */
   getCircleById(id: string): Promise<Circle> {
     return apiClient.get(`/circles/${id}`);

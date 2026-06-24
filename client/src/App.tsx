@@ -17,7 +17,6 @@ import AIAssistantPage from './pages/ai/AIAssistantPage';
 import CircleSquarePage from './pages/community/CircleSquarePage';
 import CircleDetailPage from './pages/community/CircleDetailPage';
 import PostDetailPage from './pages/community/PostDetailPage';
-import KnowledgeBasePage from './pages/knowledge/KnowledgeBasePage';
 import ProfilePage from './pages/profile/ProfilePage';
 
 /**
@@ -73,7 +72,6 @@ export default function App() {
                   <Route path="/circles" element={<CircleSquarePage />} />
                   <Route path="/circles/:id" element={<CircleDetailPage />} />
                   <Route path="/posts/:id" element={<PostDetailPage />} />
-                  <Route path="/knowledge" element={<KnowledgeBasePage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/profile/:userId" element={<ProfilePage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

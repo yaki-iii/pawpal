@@ -6,7 +6,6 @@ import {
   Bot,
   Users,
   User,
-  BookOpen,
 } from 'lucide-react';
 import { NAV_ITEMS } from '../../utils/constants';
 
@@ -15,7 +14,6 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   PawPrint,
   Users,
   Bot,
-  BookOpen,
   User,
 };
 

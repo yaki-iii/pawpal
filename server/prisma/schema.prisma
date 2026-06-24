@@ -53,6 +53,7 @@ enum NotificationType {
 enum CircleType {
   BREED
   CITY
+  TOPIC
 }
 
 enum SessionStatus {
@@ -88,9 +89,11 @@ model User {
   followings     Follow[]        @relation("Follower")
   followers      Follow[]        @relation("Followee")
   circleMembers  CircleMember[]
+  circlesOwned   Circle[]        @relation("CircleOwner")
   aiSessions     AIAssistantSession[]
   notifications  Notification[]
   growthDiaries  GrowthDiary[]
+  growthDiaryEntries GrowthDiaryEntry[]
 
   @@map("users")
 }
@@ -115,6 +118,7 @@ model Pet {
   reminders      Reminder[]
   posts          Post[]
   growthDiary    GrowthDiary?
+  growthDiaryEntries GrowthDiaryEntry[]
 
   @@index([userId])
   @@map("pets")
@@ -245,10 +249,12 @@ model Circle {
   species     PetSpecies?
   coverImage  String     @default("")
   description String     @default("")
+  ownerId     String?
   memberCount Int        @default(0)
   postCount   Int        @default(0)
   createdAt   DateTime   @default(now())
 
+  owner           User?           @relation("CircleOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   posts         Post[]
   members       CircleMember[]
   knowledgeArticles KnowledgeArticle[]
@@ -334,4 +340,23 @@ model GrowthDiary {
 
   @@index([userId])
   @@map("growth_diaries")
+}
+
+model GrowthDiaryEntry {
+  id        String   @id @default(cuid())
+  petId     String
+  userId    String
+  title     String   @default("")
+  content   String
+  mood      String   @default("")
+  photos    String[]
+  videos    String[]
+  createdAt DateTime @default(now())
+
+  pet  Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([userId])
+  @@map("growth_diary_entries")
 }

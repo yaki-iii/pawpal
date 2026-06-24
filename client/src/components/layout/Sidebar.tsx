@@ -5,7 +5,6 @@ import {
   PawPrint,
   Users,
   Bot,
-  BookOpen,
   User,
   Bell,
   LogOut,
@@ -18,7 +17,6 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   PawPrint,
   Users,
   Bot,
-  BookOpen,
   User,
 };
 

@@ -41,6 +41,7 @@ export enum NotificationType {
 export enum CircleType {
   BREED = 'BREED',
   CITY = 'CITY',
+  TOPIC = 'TOPIC',
 }
 
 export enum SessionStatus {
@@ -184,6 +185,7 @@ export interface Circle {
   species: PetSpecies | null;
   coverImage: string;
   description: string;
+  ownerId: string | null;
   memberCount: number;
   postCount: number;
   createdAt: string;
@@ -236,6 +238,18 @@ export interface GrowthMilestone {
   date: string;
   title: string;
   description: string;
+}
+
+export interface GrowthDiaryEntry {
+  id: string;
+  petId: string;
+  userId: string;
+  title: string;
+  content: string;
+  mood: string;
+  photos: string[];
+  videos: string[];
+  createdAt: string;
 }
 
 // ==================== Auth Types ====================

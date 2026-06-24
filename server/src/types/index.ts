@@ -96,6 +96,7 @@ export interface CircleDTO {
   species: string | null;
   coverImage: string;
   description: string;
+  ownerId: string | null;
   memberCount: number;
   postCount: number;
   createdAt: string;
@@ -155,6 +156,18 @@ export interface KnowledgeArticleDTO {
   category: string;
   content: string;
   author: string;
+  createdAt: string;
+}
+
+export interface GrowthDiaryEntryDTO {
+  id: string;
+  petId: string;
+  userId: string;
+  title: string;
+  content: string;
+  mood: string;
+  photos: string[];
+  videos: string[];
   createdAt: string;
 }
 

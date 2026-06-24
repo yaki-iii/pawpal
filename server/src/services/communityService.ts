@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import type { Post, Circle, Comment, Like, Follow, CircleMember } from '@prisma/client';
+import { CircleType as PrismaCircleType } from '@prisma/client';
 import type { PostDTO, CircleDTO, CommentDTO, UserDTO, PaginatedResult } from '../types';
 import { AuthService } from './authService';
 import { PetService } from './petService';
@@ -358,6 +359,48 @@ export class CommunityService {
     logger.info(`User ${userId} left circle ${circleId}`);
   }
 
+  /**
+   * Create a new topic circle (user-created).
+   * The creator automatically becomes a member.
+   */
+  static async createCircle(
+    userId: string,
+    data: {
+      name: string;
+      description: string;
+      coverImage: string;
+    },
+  ): Promise<CircleDTO> {
+    // Check name uniqueness (Circle.name has @unique constraint)
+    const existing = await prisma.circle.findUnique({ where: { name: data.name } });
+    if (existing) {
+      throw new Error('圈子名称已存在，请换一个');
+    }
+
+    // Create circle with type TOPIC, ownerId set to creator
+    const circle = await prisma.circle.create({
+      data: {
+        name: data.name,
+        type: PrismaCircleType.TOPIC,
+        description: data.description,
+        coverImage: data.coverImage,
+        ownerId: userId,
+        memberCount: 1,
+      },
+    });
+
+    // Creator auto-joins the circle
+    await prisma.circleMember.create({
+      data: { circleId: circle.id, userId },
+    });
+
+    logger.info(`Circle created: ${circle.name} (TOPIC) by user ${userId}`);
+
+    const dto = CommunityService.toCircleDTO(circle);
+    dto.isJoined = true;
+    return dto;
+  }
+
   // ---- Follows ----
 
   /**
@@ -491,6 +534,7 @@ export class CommunityService {
       species: circle.species,
       coverImage: circle.coverImage,
       description: circle.description,
+      ownerId: (circle as { ownerId?: string | null }).ownerId ?? null,
       memberCount: circle.memberCount,
       postCount: circle.postCount,
       createdAt: circle.createdAt.toISOString(),

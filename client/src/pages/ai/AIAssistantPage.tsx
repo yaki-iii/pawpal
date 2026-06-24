@@ -59,7 +59,7 @@ export default function AIAssistantPage() {
             AI 助手
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            搜索社区 · 小红书 · 抖音 · 知识库 · AI 总结 · 仅供参考，不构成医疗诊断
+            搜索社区 · 小红书 · 抖音 · AI 总结 · 仅供参考，不构成医疗诊断
           </Typography>
         </Box>
       </Box>
@@ -118,7 +118,7 @@ export default function AIAssistantPage() {
           {displaySession && (
             <AIResultCard
               session={displaySession}
-              onUpdateStatus={updateStatus}
+              onUpdateStatus={(sessionId, status) => updateStatus({ sessionId, status })}
               onAskCommunity={() => navigate('/?compose=true')}
             />
           )}
@@ -129,7 +129,7 @@ export default function AIAssistantPage() {
               <CardContent sx={{ textAlign: 'center', py: 4 }}>
                 <CircularProgress size={40} sx={{ color: 'primary.main', mb: 2 }} />
                 <Typography variant="body2" color="text.secondary">
-                  AI 正在搜索社区、小红书、抖音、知识库和网络信息...
+                  AI 正在搜索社区、小红书、抖音和网络信息...
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   通常需要 10-30 秒

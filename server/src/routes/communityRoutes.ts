@@ -19,6 +19,12 @@ const commentSchema = z.object({
   parentId: z.string().optional(),
 });
 
+const createCircleSchema = z.object({
+  name: z.string().min(2, '圈子名称至少2个字').max(20, '圈子名称最多20个字'),
+  description: z.string().max(200, '描述最多200字').default(''),
+  coverImage: z.string().default(''),
+});
+
 /**
  * Post routes — mounted at /posts
  * Relative paths (no /posts prefix).
@@ -48,6 +54,7 @@ postRoutes.delete('/:id/comments/:commentId', requireAuth, CommunityController.d
 export const circleRoutes = Router();
 
 // Circles — list/detail are public, join/leave require auth
+circleRoutes.post('/', requireAuth, validateBody(createCircleSchema), CommunityController.createCircle);
 circleRoutes.get('/', optionalAuth, CommunityController.listCircles);
 circleRoutes.get('/:id', optionalAuth, CommunityController.getCircleById);
 circleRoutes.get('/:id/posts', optionalAuth, CommunityController.getCirclePosts);
