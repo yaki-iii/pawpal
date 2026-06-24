@@ -14,6 +14,7 @@ export class CommunityService {
 
   /**
    * Publish a new post.
+   * Returns the post DTO with author info for immediate display.
    */
   static async publishPost(
     userId: string,
@@ -36,6 +37,11 @@ export class CommunityService {
         images: data.images || [],
         tags: data.tags || [],
       },
+      include: {
+        author: true,
+        pet: true,
+        circle: true,
+      },
     });
 
     // Increment circle post count
@@ -47,7 +53,19 @@ export class CommunityService {
     }
 
     logger.info(`Post published: ${post.id} by user ${userId}`);
-    return CommunityService.toPostDTO(post);
+
+    // Build DTO with author/pet/circle info
+    const dto = CommunityService.toPostDTO(post);
+    if (post.author) {
+      dto.author = AuthService.toDTO(post.author);
+    }
+    if (post.pet) {
+      dto.pet = PetService.toDTO(post.pet);
+    }
+    if (post.circle) {
+      dto.circle = CommunityService.toCircleDTO(post.circle);
+    }
+    return dto;
   }
 
   /**

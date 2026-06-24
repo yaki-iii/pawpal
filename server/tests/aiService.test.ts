@@ -51,10 +51,18 @@ jest.mock('../src/services/searchService', () => ({
   },
 }));
 
+// Mock WebSearchService
+jest.mock('../src/services/webSearchService', () => ({
+  WebSearchService: {
+    search: jest.fn(),
+  },
+}));
+
 import { llmClient } from '../src/services/llmClient';
 import { SearchService } from '../src/services/searchService';
+import { WebSearchService } from '../src/services/webSearchService';
 
-const DISCLAIMER = '以上内容来自社区和公开信息总结，仅供参考，不构成医疗诊断，复杂情况请及时就医。';
+const DISCLAIMER = '以上内容来自社区、知识库和网络公开信息总结，仅供参考，不构成专业兽医建议，复杂情况请及时就医。';
 
 const mockSession = {
   id: 'session-1',
@@ -90,6 +98,7 @@ describe('AIService', () => {
           { id: 'a1', title: '狗狗呕吐的原因和处理', content: '犬类呕吐常见原因包括...' },
         ],
       });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue(mockSession);
 
       const result = await AIService.runPipeline({
@@ -105,6 +114,7 @@ describe('AIService', () => {
 
       // Step 2: search was called with question + questionType
       expect(SearchService.searchAll).toHaveBeenCalled();
+      expect(WebSearchService.search).toHaveBeenCalled();
 
       // Step 3: LLM chat was called for summarization
       expect(llmClient.chat).toHaveBeenCalled();
@@ -122,6 +132,7 @@ describe('AIService', () => {
       (llmClient.classify as jest.Mock).mockResolvedValue('消化问题');
       (llmClient.chat as jest.Mock).mockResolvedValue('AI summary text');
       (SearchService.searchAll as jest.Mock).mockResolvedValue({ posts: [], articles: [] });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue(mockSession);
 
       await AIService.runPipeline({
@@ -146,6 +157,7 @@ describe('AIService', () => {
           { id: 'a1', title: 'Article 1', content: 'Article content' },
         ],
       });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue(mockSession);
 
       await AIService.runPipeline({
@@ -166,6 +178,7 @@ describe('AIService', () => {
     it('should use default question type "其他" when LLM is not configured', async () => {
       (llmClient.isConfigured as jest.Mock).mockReturnValue(false);
       (SearchService.searchAll as jest.Mock).mockResolvedValue({ posts: [], articles: [] });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue({
         ...mockSession,
         questionType: '其他',
@@ -183,6 +196,7 @@ describe('AIService', () => {
 
       // Should still search and create session
       expect(SearchService.searchAll).toHaveBeenCalled();
+      expect(WebSearchService.search).toHaveBeenCalled();
       expect(prisma.aIAssistantSession.create).toHaveBeenCalled();
     });
 
@@ -192,6 +206,7 @@ describe('AIService', () => {
         posts: [{ id: 'p1', title: '相关帖子', content: '内容' }],
         articles: [{ id: 'a1', title: '相关文章', content: '内容' }],
       });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue({
         ...mockSession,
         questionType: '其他',
@@ -217,6 +232,7 @@ describe('AIService', () => {
       (llmClient.classify as jest.Mock).mockRejectedValue(new Error('API error'));
       (llmClient.chat as jest.Mock).mockResolvedValue('summary');
       (SearchService.searchAll as jest.Mock).mockResolvedValue({ posts: [], articles: [] });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue({
         ...mockSession,
         questionType: '其他',
@@ -239,6 +255,7 @@ describe('AIService', () => {
         posts: [{ id: 'p1', title: '帖子1', content: 'content' }],
         articles: [],
       });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue({
         ...mockSession,
       });
@@ -259,6 +276,7 @@ describe('AIService', () => {
       (llmClient.classify as jest.Mock).mockRejectedValue(new Error('classify failed'));
       (llmClient.chat as jest.Mock).mockRejectedValue(new Error('chat failed'));
       (SearchService.searchAll as jest.Mock).mockResolvedValue({ posts: [], articles: [] });
+      (WebSearchService.search as jest.Mock).mockResolvedValue([]);
       (prisma.aIAssistantSession.create as jest.Mock).mockResolvedValue(mockSession);
 
       const result = await AIService.runPipeline({
@@ -278,6 +296,7 @@ describe('AIService', () => {
         '柯基呕吐怎么办',
         [{ title: '帖子1', content: '内容内容内容' }],
         [{ title: '文章1', content: '文章内容' }],
+        [],
       );
 
       expect(context).toContain('柯基呕吐怎么办');
@@ -287,12 +306,25 @@ describe('AIService', () => {
       expect(context).toContain('不要给出用药剂量');
     });
 
+    it('should include web search results in context', () => {
+      const context = AIService.buildContextText(
+        '柯基呕吐',
+        [],
+        [],
+        [{ title: '小红书经验', url: 'https://xiaohongshu.com/123', snippet: '我家柯基也呕吐', source: '小红书' }],
+      );
+
+      expect(context).toContain('柯基呕吐');
+      expect(context).toContain('小红书经验');
+      expect(context).toContain('网络搜索结果');
+    });
+
     it('should handle empty search results', () => {
-      const context = AIService.buildContextText('test', [], []);
+      const context = AIService.buildContextText('test', [], [], []);
 
       expect(context).toContain('test');
       // Should still have the instruction
-      expect(context).toContain('总结归纳参考建议');
+      expect(context).toContain('综合总结参考建议');
     });
   });
 
@@ -301,6 +333,7 @@ describe('AIService', () => {
       const summary = AIService.buildFallbackSummary(
         [{ title: '帖子A', content: 'c' }],
         [{ title: '文章B', content: 'c' }],
+        [],
       );
 
       expect(summary).toContain('帖子A');
@@ -309,16 +342,28 @@ describe('AIService', () => {
       expect(summary).toContain('相关知识文章');
     });
 
-    it('should show "no results" message when both empty', () => {
-      const summary = AIService.buildFallbackSummary([], []);
+    it('should include web results in fallback summary', () => {
+      const summary = AIService.buildFallbackSummary(
+        [],
+        [],
+        [{ title: '抖音视频分享', url: 'https://douyin.com/1', snippet: '柯基护理', source: '抖音' }],
+      );
+
+      expect(summary).toContain('抖音视频分享');
+      expect(summary).toContain('网络相关内容');
+    });
+
+    it('should show "no results" message when all empty', () => {
+      const summary = AIService.buildFallbackSummary([], [], []);
 
       expect(summary).toContain('暂未找到');
       expect(summary).toContain('社区发布求助帖');
     });
 
-    it('should handle only posts (no articles)', () => {
+    it('should handle only posts (no articles or web)', () => {
       const summary = AIService.buildFallbackSummary(
         [{ title: '帖子1', content: 'c' }],
+        [],
         [],
       );
 
@@ -332,7 +377,7 @@ describe('AIService', () => {
       const disclaimer = AIService.buildDisclaimer();
       expect(disclaimer).toBe(DISCLAIMER);
       expect(disclaimer).toContain('仅供参考');
-      expect(disclaimer).toContain('不构成医疗诊断');
+      expect(disclaimer).toContain('不构成专业兽医建议');
       expect(disclaimer).toContain('请及时就医');
     });
   });

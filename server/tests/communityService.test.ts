@@ -135,15 +135,22 @@ describe('CommunityService', () => {
       });
 
       expect(post.title).toBe('柯基减肥记');
-      expect(prisma.post.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          userId: 'user-1',
-          title: '柯基减肥记',
-          content: '我家柯基成功减肥3公斤...',
-          images: ['/uploads/img1.jpg'],
-          tags: ['柯基', '减肥'],
+      expect(prisma.post.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'user-1',
+            title: '柯基减肥记',
+            content: '我家柯基成功减肥3公斤...',
+            images: ['/uploads/img1.jpg'],
+            tags: ['柯基', '减肥'],
+          }),
+          include: expect.objectContaining({
+            author: true,
+            pet: true,
+            circle: true,
+          }),
         }),
-      });
+      );
     });
 
     it('should increment circle postCount when circleId is provided', async () => {

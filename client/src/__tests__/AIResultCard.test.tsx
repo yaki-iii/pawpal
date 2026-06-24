@@ -3,8 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import AIResultCard from '../components/ai/AIResultCard';
 import type { AIAssistantSession } from '../types';
 import { SessionStatus } from '../types';
-
-const DISCLAIMER = '以上内容来自社区和公开信息总结，仅供参考，不构成医疗诊断，复杂情况请及时就医。';
+import { AI_DISCLAIMER as DISCLAIMER } from '../utils/constants';
 
 const createMockSession = (overrides: Partial<AIAssistantSession> = {}): AIAssistantSession => ({
   id: 'session-1',

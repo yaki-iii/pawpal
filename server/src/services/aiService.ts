@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { llmClient } from './llmClient';
 import { SearchService } from './searchService';
+import { WebSearchService, type WebSearchResult } from './webSearchService';
 import type { AIAssistantSessionDTO, AISource } from '../types';
 import type { AIAssistantSession } from '@prisma/client';
 
@@ -9,16 +10,19 @@ import type { AIAssistantSession } from '@prisma/client';
  * System prompt for the AI assistant.
  * CRITICAL: This prompt is hardcoded in the backend and cannot be modified by the frontend.
  * The AI must NOT provide medical diagnosis or medication dosages.
+ *
+ * Updated for multi-source search: the AI now receives context from community posts,
+ * knowledge articles, and web search results (including Xiaohongshu and Douyin content).
  */
-const SYSTEM_PROMPT = `你是 PawPal 爪友的宠物经验总结助手。你的职责是：
+const SYSTEM_PROMPT = `你是 PawPal 爪友的宠物经验总结助手，提供类似"腾讯元宝"的搜索总结体验。你的职责是：
 
-1. 根据用户的问题描述，总结社区经验和知识要点
-2. 提供参考建议，但绝不进行医疗诊断
-3. 不给出具体用药剂量
-4. 不替代兽医的专业建议
-5. 如果问题涉及紧急情况（如大量出血、呼吸困难、严重外伤），建议用户立即就医
-6. 总结内容要分条列出，语言简洁明了
-7. 引用社区帖子和知识文章时，注明来源
+1. 根据用户的问题，综合社区帖子、知识文章和网络搜索结果（包括小红书、抖音等平台内容），给出总结性回答
+2. 回答要分条列出要点，语言简洁明了，通俗易懂
+3. 引用信息时标注来源，如"据社区宠主分享"、"据小红书经验"、"据抖音视频"、"据知识文章"等
+4. 不要编造没有搜索结果支撑的信息，如果搜索结果不足，坦诚说明
+5. 不提供医疗诊断，不给出具体用药剂量
+6. 不替代兽医的专业建议
+7. 如果问题涉及紧急情况（如大量出血、呼吸困难、严重外伤），建议用户立即就医
 
 请始终记住：你是经验总结助手，不是兽医。所有建议仅供参考。`;
 
@@ -33,18 +37,26 @@ const QUESTION_CATEGORIES = [
 /**
  * Fixed disclaimer text — appended to every AI response.
  */
-const DISCLAIMER = '以上内容来自社区和公开信息总结，仅供参考，不构成医疗诊断，复杂情况请及时就医。';
+const DISCLAIMER = '以上内容来自社区、知识库和网络公开信息总结，仅供参考，不构成专业兽医建议，复杂情况请及时就医。';
 
 /**
- * AIService — orchestrates the AI consultation pipeline:
+ * AIService — orchestrates the multi-source AI consultation pipeline:
  * 1. Identify question type (LLM classification)
- * 2. Search content (community posts + knowledge articles)
- * 3. Summarize (LLM summarization)
- * 4. Assemble result + disclaimer
+ * 2. Search content from multiple sources in parallel:
+ *    a. Community posts (站内社区)
+ *    b. Knowledge articles (知识库)
+ *    c. Web search via DuckDuckGo (网络, including 小红书/抖音 content)
+ * 3. Summarize (LLM summarization with multi-source context)
+ * 4. Assemble result + sources + disclaimer
+ *
+ * Degradation strategy:
+ * - If web search fails, falls back to community + LLM only.
+ * - If LLM fails, falls back to a structured summary from search results.
+ * - If all search fails, LLM answers based on its own knowledge.
  */
 export class AIService {
   /**
-   * Run the full AI consultation pipeline.
+   * Run the full multi-source AI consultation pipeline.
    * @throws Error if pipeline fails at any step.
    */
   static async runPipeline(data: {
@@ -67,10 +79,28 @@ export class AIService {
       }
     }
 
-    // Step 2: Search content (community posts + knowledge articles)
+    // Step 2: Search content from multiple sources in parallel
+    // - Community posts + knowledge articles (站内搜索)
+    // - Web search via DuckDuckGo (网络搜索, including 小红书/抖音)
     const searchKeyword = `${question} ${questionType}`;
-    const searchResults = await SearchService.searchAll(searchKeyword, 5);
-    logger.info(`AI search results: ${searchResults.posts.length} posts, ${searchResults.articles.length} articles`);
+
+    const [searchResults, webResults] = await Promise.all([
+      // Site search: community posts + knowledge articles
+      SearchService.searchAll(searchKeyword, 5).catch((error) => {
+        logger.warn(`Site search failed, continuing with web only: ${(error as Error).message}`);
+        return { posts: [], articles: [] };
+      }),
+      // Web search: DuckDuckGo (includes 小红书/抖音 content)
+      WebSearchService.search(question, 5).catch((error) => {
+        logger.warn(`Web search failed, continuing with site only: ${(error as Error).message}`);
+        return [] as WebSearchResult[];
+      }),
+    ]);
+
+    logger.info(
+      `AI search results: ${searchResults.posts.length} posts, ` +
+        `${searchResults.articles.length} articles, ${webResults.length} web results`,
+    );
 
     // Build sources array for the response
     const sources: AISource[] = [
@@ -86,26 +116,37 @@ export class AIService {
         url: `/knowledge/${article.id}`,
         snippet: article.content.substring(0, 100),
       })),
+      ...webResults.map((web) => ({
+        type: 'web' as const,
+        title: web.title,
+        url: web.url,
+        snippet: web.snippet,
+      })),
     ];
 
-    // Step 3: Summarize (LLM summarization)
+    // Step 3: Summarize (LLM summarization with multi-source context)
     let summary = '';
     if (llmClient.isConfigured()) {
       try {
-        const contextText = AIService.buildContextText(question, searchResults.posts, searchResults.articles);
+        const contextText = AIService.buildContextText(
+          question,
+          searchResults.posts,
+          searchResults.articles,
+          webResults,
+        );
         const messages: Array<{ role: 'system' | 'user'; content: string }> = [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: contextText },
         ];
-        summary = await llmClient.chat(messages, { temperature: 0.7, maxTokens: 800 });
+        summary = await llmClient.chat(messages, { temperature: 0.7, maxTokens: 1000 });
         logger.info('AI summary generated successfully');
       } catch (error) {
         logger.warn(`AI summary failed, using fallback: ${(error as Error).message}`);
-        summary = AIService.buildFallbackSummary(searchResults.posts, searchResults.articles);
+        summary = AIService.buildFallbackSummary(searchResults.posts, searchResults.articles, webResults);
       }
     } else {
       // LLM not configured — use fallback summary from search results
-      summary = AIService.buildFallbackSummary(searchResults.posts, searchResults.articles);
+      summary = AIService.buildFallbackSummary(searchResults.posts, searchResults.articles, webResults);
     }
 
     // Step 4: Assemble result + disclaimer
@@ -126,42 +167,57 @@ export class AIService {
   }
 
   /**
-   * Build context text for the LLM from search results.
+   * Build context text for the LLM from all search sources.
+   * Includes community posts, knowledge articles, and web search results.
    */
   static buildContextText(
     question: string,
     posts: Array<{ title: string; content: string }>,
     articles: Array<{ title: string; content: string }>,
+    webResults: WebSearchResult[],
   ): string {
     let context = `用户问题：${question}\n\n`;
 
     if (posts.length > 0) {
-      context += '相关社区帖子：\n';
+      context += '【社区帖子】\n';
       posts.forEach((post, i) => {
         context += `${i + 1}. ${post.title}\n${post.content.substring(0, 200)}\n\n`;
       });
     }
 
     if (articles.length > 0) {
-      context += '相关知识文章：\n';
+      context += '【知识文章】\n';
       articles.forEach((article, i) => {
         context += `${i + 1}. ${article.title}\n${article.content.substring(0, 200)}\n\n`;
       });
     }
 
-    context += '请根据以上信息，总结归纳参考建议（不要做医疗诊断，不要给出用药剂量）：';
+    if (webResults.length > 0) {
+      context += '【网络搜索结果】（包含小红书、抖音等平台内容）\n';
+      webResults.forEach((web, i) => {
+        context += `${i + 1}. [${web.source}] ${web.title}\n${web.snippet}\n来源：${web.url}\n\n`;
+      });
+    }
+
+    context += '请根据以上信息，综合总结参考建议。要求：\n';
+    context += '1. 分条列出要点，语言简洁明了\n';
+    context += '2. 引用信息时标注来源（如"据社区帖子"、"据小红书分享"、"据抖音视频"等）\n';
+    context += '3. 不要编造没有搜索结果支撑的信息\n';
+    context += '4. 不要做医疗诊断，不要给出用药剂量\n';
+    context += '5. 如果涉及紧急情况，建议立即就医\n';
     return context;
   }
 
   /**
    * Build fallback summary when LLM is unavailable.
-   * Returns a formatted summary of search results.
+   * Returns a formatted summary of all search results.
    */
   static buildFallbackSummary(
     posts: Array<{ title: string; content: string }>,
     articles: Array<{ title: string; content: string }>,
+    webResults: WebSearchResult[],
   ): string {
-    let summary = '根据社区和知识库搜索结果，为您整理以下参考信息：\n\n';
+    let summary = '根据社区、知识库和网络搜索结果，为您整理以下参考信息：\n\n';
 
     if (posts.length > 0) {
       summary += '📋 社区相关讨论：\n';
@@ -179,7 +235,15 @@ export class AIService {
       summary += '\n';
     }
 
-    if (posts.length === 0 && articles.length === 0) {
+    if (webResults.length > 0) {
+      summary += '🌐 网络相关内容：\n';
+      webResults.forEach((web, i) => {
+        summary += `${i + 1}. [${web.source}] ${web.title}\n`;
+      });
+      summary += '\n';
+    }
+
+    if (posts.length === 0 && articles.length === 0 && webResults.length === 0) {
       summary += '暂未找到与您问题直接相关的内容。建议您在社区发布求助帖，获取更多宠主的经验分享。\n';
     }
 

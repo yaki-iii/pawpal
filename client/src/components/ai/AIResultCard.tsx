@@ -1,7 +1,7 @@
 import { Box, Card, CardContent, Typography, Chip, Divider, Button } from '@mui/material';
 import { AlertTriangle, ExternalLink, MessageCircle } from 'lucide-react';
 import type { AIAssistantSession, SessionStatus } from '../../types';
-import { AI_DISCLAIMER, QUESTION_TYPES } from '../../utils/constants';
+import { AI_DISCLAIMER } from '../../utils/constants';
 
 interface AIResultCardProps {
   session: AIAssistantSession;
@@ -21,6 +21,27 @@ const STATUS_OPTIONS: Array<{ value: SessionStatus; label: string; color: 'defau
  */
 export default function AIResultCard({ session, onUpdateStatus, onAskCommunity }: AIResultCardProps) {
   const sources = (session.sources || []) as Array<{ type: string; title: string; url: string; snippet: string }>;
+
+  /**
+   * Get display label and color for a source type.
+   */
+  const getSourceLabel = (type: string): string => {
+    switch (type) {
+      case 'post': return '社区帖';
+      case 'article': return '知识文章';
+      case 'web': return '网络';
+      default: return type;
+    }
+  };
+
+  const getSourceColor = (type: string): 'default' | 'primary' | 'secondary' | 'info' => {
+    switch (type) {
+      case 'post': return 'primary';
+      case 'article': return 'secondary';
+      case 'web': return 'info';
+      default: return 'default';
+    }
+  };
 
   return (
     <Card sx={{ mb: 2 }}>
@@ -82,9 +103,10 @@ export default function AIResultCard({ session, onUpdateStatus, onAskCommunity }
                   }}
                 >
                   <Chip
-                    label={source.type === 'post' ? '社区帖' : '知识文章'}
+                    label={getSourceLabel(source.type)}
                     size="small"
                     variant="outlined"
+                    color={getSourceColor(source.type)}
                     sx={{ height: 20, fontSize: '0.65rem', flexShrink: 0 }}
                   />
                   <Box sx={{ flex: 1, minWidth: 0 }}>

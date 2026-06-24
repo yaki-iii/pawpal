@@ -20,6 +20,7 @@ import {
   Hospital,
   Share2,
   Edit,
+  Trash2,
   Calendar,
 } from 'lucide-react';
 import { usePets, useHealthRecords, useWeightRecords, useReminders } from '../../hooks/usePets';
@@ -28,6 +29,7 @@ import HealthTimeline from '../../components/health/HealthTimeline';
 import WeightChart from '../../components/health/WeightChart';
 import ReminderCard from '../../components/health/ReminderCard';
 import EmptyState from '../../components/common/EmptyState';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { HealthRecordType } from '../../types';
 import {
   HEALTH_RECORD_TYPE_LABELS,
@@ -43,7 +45,7 @@ import type { HealthRecordFormData } from '../../types';
 export default function PetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { pets, currentPet, setCurrentPet } = usePets();
+  const { pets, currentPet, setCurrentPet, deletePet } = usePets();
   const { records, createRecord, deleteRecord } = useHealthRecords(id);
   const { weightRecords, addWeight } = useWeightRecords(id);
   const { reminders, markDone } = useReminders(id);
@@ -51,6 +53,7 @@ export default function PetDetailPage() {
   const [tabValue, setTabValue] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [formType, setFormType] = useState<HealthRecordType>(HealthRecordType.VACCINE);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const pet = pets.find((p) => p.id === id) || currentPet;
 
@@ -124,14 +127,25 @@ export default function PetDetailPage() {
                 {pet.birthday && ` · 生日 ${formatDate(pet.birthday)}`}
               </Typography>
             </Box>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Edit size={16} />}
-              onClick={() => navigate(`/pets/${pet.id}/edit`)}
-            >
-              编辑
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Edit size={16} />}
+                onClick={() => navigate(`/pets/${pet.id}/edit`)}
+              >
+                编辑
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                color="error"
+                startIcon={<Trash2 size={16} />}
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                删除
+              </Button>
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -286,6 +300,26 @@ export default function PetDetailPage() {
           await createRecord(data);
         }}
         defaultType={formType}
+      />
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="删除宠物档案"
+        message={`确定要删除「${pet.name}」的档案吗？相关的健康记录、体重数据和提醒将一并删除，此操作不可撤销。`}
+        confirmText="确认删除"
+        danger
+        onConfirm={async () => {
+          try {
+            await deletePet(pet.id);
+            setDeleteDialogOpen(false);
+            navigate('/pets');
+          } catch {
+            // Error is handled by the mutation's onError callback
+            setDeleteDialogOpen(false);
+          }
+        }}
+        onClose={() => setDeleteDialogOpen(false)}
       />
     </Box>
   );

@@ -128,7 +128,7 @@ export interface AIAssistantSessionDTO {
 }
 
 export interface AISource {
-  type: 'post' | 'article';
+  type: 'post' | 'article' | 'web';
   title: string;
   url: string;
   snippet: string;

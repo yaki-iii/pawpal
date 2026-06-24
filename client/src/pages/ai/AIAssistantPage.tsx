@@ -16,7 +16,6 @@ import { usePets } from '../../hooks/usePets';
 import AIResultCard from '../../components/ai/AIResultCard';
 import AIHistoryList from '../../components/ai/AIHistoryList';
 import ImageUploader from '../../components/common/ImageUploader';
-import { AI_DISCLAIMER } from '../../utils/constants';
 import type { AIAssistantSession, SessionStatus } from '../../types';
 
 /**
@@ -60,7 +59,7 @@ export default function AIAssistantPage() {
             AI 助手
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            识别问题 · 搜索经验 · 总结参考 · 仅供参考，不构成医疗诊断
+            搜索社区 · 小红书 · 抖音 · 知识库 · AI 总结 · 仅供参考，不构成医疗诊断
           </Typography>
         </Box>
       </Box>
@@ -110,7 +109,7 @@ export default function AIAssistantPage() {
                 disabled={isConsulting || question.trim().length < 5}
                 sx={{ mt: 2 }}
               >
-                {isConsulting ? 'AI 正在分析...' : '搜索参考'}
+                {isConsulting ? 'AI 正在搜索...' : '搜索参考'}
               </Button>
             </CardContent>
           </Card>
@@ -130,10 +129,10 @@ export default function AIAssistantPage() {
               <CardContent sx={{ textAlign: 'center', py: 4 }}>
                 <CircularProgress size={40} sx={{ color: 'primary.main', mb: 2 }} />
                 <Typography variant="body2" color="text.secondary">
-                  AI 正在识别问题、搜索社区经验和知识库...
+                  AI 正在搜索社区、小红书、抖音、知识库和网络信息...
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  通常需要 5-15 秒
+                  通常需要 10-30 秒
                 </Typography>
               </CardContent>
             </Card>

@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { communityApi } from '../api/community';
 import { useUIStore } from '../store/uiStore';
-import type { FeedType, PostFormData, Comment } from '../types';
+import type { FeedType, PostFormData, Post, Comment, PaginatedData } from '../types';
 
 /**
  * usePosts — community feed with infinite scroll + optimistic updates.
@@ -56,7 +56,27 @@ export function usePostActions() {
 
   const createPost = useMutation({
     mutationFn: (data: PostFormData) => communityApi.createPost(data),
-    onSuccess: () => {
+    onSuccess: (newPost) => {
+      // Optimistically prepend the new post to all post feed caches
+      // This ensures the post is immediately visible, even in RECOMMEND mode
+      // where new posts with 0 engagement would be sorted to the bottom.
+      queryClient.setQueriesData<{
+        pages: Array<PaginatedData<Post>>;
+        pageParams: unknown[];
+      }>({ queryKey: ['posts'] }, (oldData) => {
+        if (!oldData?.pages || oldData.pages.length === 0) return oldData;
+        return {
+          ...oldData,
+          pages: [
+            {
+              items: [newPost, ...oldData.pages[0].items],
+              nextCursor: oldData.pages[0].nextCursor,
+            },
+            ...oldData.pages.slice(1),
+          ],
+        };
+      });
+      // Invalidate for eventual consistency (background refetch)
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       showSnackbar('发布成功', 'success');
     },

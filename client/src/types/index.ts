@@ -205,7 +205,7 @@ export interface AIAssistantSession {
 }
 
 export interface AISource {
-  type: 'post' | 'article';
+  type: 'post' | 'article' | 'web';
   title: string;
   url: string;
   snippet: string;
@@ -282,6 +282,7 @@ export interface PostFormData {
   content: string;
   circleId?: string;
   petId?: string;
+  images?: string[];
   tags: string[];
 }
 

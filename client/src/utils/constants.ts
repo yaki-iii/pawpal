@@ -130,7 +130,7 @@ export const SPECIES_LABELS: Record<PetSpecies, string> = {
 // ==================== AI Disclaimer ====================
 
 export const AI_DISCLAIMER =
-  '以上内容来自社区和公开信息总结，仅供参考，不构成医疗诊断，复杂情况请及时就医。';
+  '以上内容来自社区、知识库和网络公开信息总结，仅供参考，不构成专业兽医建议，复杂情况请及时就医。';
 
 // ==================== Question Type Labels ====================
 
