@@ -18,19 +18,11 @@ export function createApp(): Application {
   // Security middleware
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-  // CORS configuration — supports multiple origins from CORS_ORIGIN env var
+  // CORS configuration — temporarily allow all origins for testing
   const corsOptions: CorsOptions = {
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., curl, mobile apps, server-to-server)
-      if (!origin) {
-        return callback(null, true);
-      }
-      // Check if the request origin is in the allowed list
-      if (config.cors.origin.includes(origin)) {
-        return callback(null, true);
-      }
-      logger.warn(`CORS blocked origin: ${origin}`);
-      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      // Allow all origins during testing phase
+      return callback(null, true);
     },
     credentials: true,
   };
